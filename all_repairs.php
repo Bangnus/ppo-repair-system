@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve'])) {
 
             $_SESSION['toast'] = ['message' => 'อัปเดตสถานะเรียบร้อยแล้ว (2/2 admin ยืนยัน)', 'type' => 'success'];
         } else {
-            $_SESSION['toast'] = ['message' => 'ยืนยันแล้ว 1/2 รอ Admin อีก 1 คน', 'type' => 'warning'];
+            $_SESSION['toast'] = ['message' => 'ยืนยันแล้ว รอผู้อนุมัติอีก 1 คน', 'type' => 'warning'];
         }
     } else {
         $_SESSION['toast'] = ['message' => 'คุณได้ยืนยันรายการนี้ไปแล้ว', 'type' => 'error'];

@@ -1,10 +1,10 @@
 <?php
 /**
- * All Repairs (Admin Only)
+ * All Repairs (Staff: Admin, Manager, Supervisor)
  * View all repairs and approve status changes
  */
 require_once __DIR__ . '/../includes/auth.php';
-requireAdmin();
+requireStaff();
 
 // Handle approval - BEFORE including header
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve'])) {
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve'])) {
 
             $_SESSION['toast'] = ['message' => 'อัปเดตสถานะเรียบร้อยแล้ว (2/2 admin ยืนยัน)', 'type' => 'success'];
         } else {
-            $_SESSION['toast'] = ['message' => 'ยืนยันแล้ว 1/2 รอ Admin อีก 1 คน', 'type' => 'warning'];
+            $_SESSION['toast'] = ['message' => 'ยืนยันแล้ว รอผู้อนุมัติอีก 1 คน', 'type' => 'warning'];
         }
     } else {
         $_SESSION['toast'] = ['message' => 'คุณได้ยืนยันรายการนี้ไปแล้ว', 'type' => 'error'];
@@ -162,7 +162,7 @@ $statusLabels = [
                             </td>
                             <td class="px-4 py-4 text-xs">
                                 <?php if ($repair['in_progress_approvals'] > 0 && $repair['status'] === 'pending'): ?>
-                                    <span class="text-blue-600">🔵 กำลังซ่อม: <?= $repair['in_progress_approvals'] ?>/2</span>
+                                    <span class="text-blue-600">🔵 ยืนยันซ่อม: <?= $repair['in_progress_approvals'] ?>/2</span>
                                 <?php elseif ($repair['completed_approvals'] > 0 && $repair['status'] === 'in_progress'): ?>
                                     <span class="text-emerald-600">🟢 เสร็จ: <?= $repair['completed_approvals'] ?>/2</span>
                                 <?php else: ?>
@@ -171,7 +171,7 @@ $statusLabels = [
                             </td>
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-center gap-2">
-                                    <?php if ($repair['status'] === 'pending'): ?>
+                                    <?php if ($repair['status'] === 'pending' && isAdmin()): ?>
                                         <form method="POST" class="inline">
                                             <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">
                                             <input type="hidden" name="new_status" value="in_progress">
@@ -179,16 +179,18 @@ $statusLabels = [
                                                 class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg">🔧
                                                 รับงาน</button>
                                         </form>
-                                    <?php elseif ($repair['status'] === 'in_progress'): ?>
+                                    <?php elseif ($repair['status'] === 'in_progress' && (isManager() || isSupervisor())): ?>
                                         <form method="POST" class="inline">
                                             <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">
                                             <input type="hidden" name="new_status" value="completed">
                                             <button name="approve"
                                                 class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg">✅
-                                                เสร็จสิ้น</button>
+                                                ยืนยันเสร็จ</button>
                                         </form>
-                                    <?php else: ?>
-                                        <span class="text-gray-400 text-xs">เสร็จแล้ว</span>
+                                    <?php elseif ($repair['status'] === 'pending'): ?>
+                                        <span class="text-amber-500 text-xs">⏳ รอ Admin รับงาน</span>
+                                    <?php elseif ($repair['status'] === 'in_progress'): ?>
+                                        <span class="text-blue-500 text-xs">🔧 รอยืนยันเสร็จ</span>
                                     <?php endif; ?>
                                     <form method="POST" class="inline" id="deleteForm<?= $repair['id'] ?>">
                                         <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">

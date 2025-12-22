@@ -6,8 +6,8 @@
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 
-// Redirect admin to admin dashboard
-if (isAdmin()) {
+// Redirect staff to admin dashboard
+if (isStaff()) {
     header('Location: admin/dashboard.php');
     exit();
 }
@@ -186,7 +186,7 @@ require_once __DIR__ . '/includes/header.php';
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                <?= date('d/m/Y H:i', strtotime($repair['created_at'])) ?>
+                                <?= thaiDate($repair['created_at'], true) ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

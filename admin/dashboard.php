@@ -1,10 +1,10 @@
 <?php
 /**
- * Admin Dashboard
+ * Staff Dashboard (Admin, Manager, Supervisor)
  * Balanced clean design
  */
 require_once __DIR__ . '/../includes/auth.php';
-requireAdmin();
+requireStaff();
 
 $pageTitle = 'แดชบอร์ด';
 
@@ -138,7 +138,8 @@ require_once __DIR__ . '/../includes/header.php';
                             </td>
                             <td class="px-5 py-3 text-gray-700"><?= e($repair['device_type']) ?></td>
                             <td class="px-5 py-3 text-gray-600 max-w-[200px] truncate hidden sm:table-cell">
-                                <?= e($repair['problem']) ?></td>
+                                <?= e($repair['problem']) ?>
+                            </td>
                             <td class="px-5 py-3">
                                 <span
                                     class="px-2.5 py-1 rounded-full text-xs font-medium <?= $statusColors[$repair['status']] ?>">
@@ -146,7 +147,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </span>
                             </td>
                             <td class="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">
-                                <?= date('d/m/Y', strtotime($repair['created_at'])) ?>
+                                <?= thaiDate($repair['created_at']) ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

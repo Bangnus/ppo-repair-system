@@ -34,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['username'] = $user['username'];
             $_SESSION['fullname'] = $user['fullname'];
             $_SESSION['role'] = $user['role'];
-
-            if ($user['role'] === 'admin') {
+            // Redirect based on role
+            if (in_array($user['role'], ['admin', 'manager', 'supervisor'])) {
                 header('Location: admin/dashboard.php');
             } else {
                 header('Location: dashboard.php');

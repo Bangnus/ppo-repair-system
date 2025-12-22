@@ -85,7 +85,7 @@ $statusLabels = [
                                 </span>
                             </td>
                             <td class="px-4 py-4 text-sm text-gray-500 hidden md:table-cell">
-                                <?= date('d/m/Y', strtotime($repair['created_at'])) ?>
+                                <?= thaiDate($repair['created_at']) ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

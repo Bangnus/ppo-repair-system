@@ -56,8 +56,9 @@ $basePath = $isInAdminFolder ? '../' : '';
 
 <body class="gradient-bg min-h-screen">
 
-    <?php if (isLoggedIn() && isAdmin()): ?>
-        <!-- ========== ADMIN LAYOUT ========== -->
+    <?php if (isLoggedIn() && isStaff()): ?>
+        <?php $roleInfo = getRoleInfo($_SESSION['role']); ?>
+        <!-- ========== STAFF LAYOUT (Admin/Manager/Supervisor) ========== -->
         <div class="flex">
             <!-- Admin Sidebar -->
             <aside class="sidebar-gradient w-64 min-h-screen fixed left-0 top-0 shadow-2xl z-40 hidden lg:block">
@@ -70,7 +71,7 @@ $basePath = $isInAdminFolder ? '../' : '';
                         </div>
                         <div>
                             <h1 class="text-base font-bold text-white">ระบบแจ้งซ่อม</h1>
-                            <p class="text-xs text-emerald-200">Admin Panel</p>
+                            <p class="text-xs text-emerald-200"><?= $roleInfo['icon'] ?>     <?= $roleInfo['label'] ?></p>
                         </div>
                     </div>
                 </div>
@@ -84,7 +85,7 @@ $basePath = $isInAdminFolder ? '../' : '';
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-white truncate"><?= e($currentUser['fullname'] ?? '') ?></p>
-                            <p class="text-xs text-emerald-300">👑 Admin</p>
+                            <p class="text-xs text-emerald-300"><?= $roleInfo['icon'] ?>     <?= $roleInfo['label'] ?></p>
                         </div>
                     </div>
                 </div>
@@ -122,23 +123,26 @@ $basePath = $isInAdminFolder ? '../' : '';
                         <span class="text-lg">📑</span><span class="text-sm font-medium">รายการทั้งหมด</span>
                     </a>
 
-                    <!-- จัดการระบบ -->
-                    <div class="pt-3">
-                        <p class="px-3 py-1 text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">จัดการระบบ
-                        </p>
-                    </div>
-                    <a href="<?= $basePath ?>admin/manage_users.php"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_users.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
-                        <span class="text-lg">👥</span><span class="text-sm font-medium">จัดการผู้ใช้</span>
-                    </a>
-                    <a href="<?= $basePath ?>admin/manage_departments.php"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_departments.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
-                        <span class="text-lg">🏢</span><span class="text-sm font-medium">จัดการแผนก</span>
-                    </a>
-                    <a href="<?= $basePath ?>admin/manage_devices.php"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_devices.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
-                        <span class="text-lg">💻</span><span class="text-sm font-medium">จัดการอุปกรณ์</span>
-                    </a>
+
+                    <!-- จัดการระบบ (Admin Only) -->
+                    <?php if (isAdmin()): ?>
+                        <div class="pt-3">
+                            <p class="px-3 py-1 text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">จัดการระบบ
+                            </p>
+                        </div>
+                        <a href="<?= $basePath ?>admin/manage_users.php"
+                            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_users.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
+                            <span class="text-lg">👥</span><span class="text-sm font-medium">จัดการผู้ใช้</span>
+                        </a>
+                        <a href="<?= $basePath ?>admin/manage_departments.php"
+                            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_departments.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
+                            <span class="text-lg">🏢</span><span class="text-sm font-medium">จัดการแผนก</span>
+                        </a>
+                        <a href="<?= $basePath ?>admin/manage_devices.php"
+                            class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all <?= $currentPage === 'manage_devices.php' ? 'bg-white/20 text-white' : 'text-emerald-100 hover:bg-white/10' ?>">
+                            <span class="text-lg">💻</span><span class="text-sm font-medium">จัดการอุปกรณ์</span>
+                        </a>
+                    <?php endif; ?>
                 </nav>
 
                 <!-- Logout -->
@@ -180,16 +184,18 @@ $basePath = $isInAdminFolder ? '../' : '';
                         <a href="<?= $basePath ?>admin/all_repairs.php"
                             class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">📑
                             รายการทั้งหมด</a>
-                        <p class="px-4 pt-3 text-xs text-emerald-400 font-semibold">จัดการระบบ</p>
-                        <a href="<?= $basePath ?>admin/manage_users.php"
-                            class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">👥
-                            จัดการผู้ใช้</a>
-                        <a href="<?= $basePath ?>admin/manage_departments.php"
-                            class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">🏢
-                            จัดการแผนก</a>
-                        <a href="<?= $basePath ?>admin/manage_devices.php"
-                            class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">💻
-                            จัดการอุปกรณ์</a>
+                        <?php if (isAdmin()): ?>
+                            <p class="px-4 pt-3 text-xs text-emerald-400 font-semibold">จัดการระบบ</p>
+                            <a href="<?= $basePath ?>admin/manage_users.php"
+                                class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">👥
+                                จัดการผู้ใช้</a>
+                            <a href="<?= $basePath ?>admin/manage_departments.php"
+                                class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">🏢
+                                จัดการแผนก</a>
+                            <a href="<?= $basePath ?>admin/manage_devices.php"
+                                class="flex items-center gap-3 px-4 py-3 rounded-xl text-white hover:bg-white/10">💻
+                                จัดการอุปกรณ์</a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
