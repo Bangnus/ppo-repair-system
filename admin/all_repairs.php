@@ -12,6 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve'])) {
     $newStatus = $_POST['new_status'];
     $adminId = $_SESSION['user_id'];
 
+    // Get repair type fields (only for in_progress status)
+    $repairType = isset($_POST['repair_type']) ? $_POST['repair_type'] : null;
+    $repairNotes = isset($_POST['repair_notes']) ? trim($_POST['repair_notes']) : null;
+    $repairDetails = isset($_POST['repair_details']) ? trim($_POST['repair_details']) : null;
+
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM approvals WHERE repair_id = ? AND admin_id = ? AND new_status = ?");
     $stmt->execute([$repairId, $adminId, $newStatus]);
     $alreadyApproved = $stmt->fetchColumn() > 0;
@@ -25,14 +30,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve'])) {
         $approvalCount = $stmt->fetchColumn();
 
         if ($approvalCount >= 2) {
-            $stmt = $pdo->prepare("UPDATE repairs SET status = ? WHERE id = ?");
-            $stmt->execute([$newStatus, $repairId]);
+            // Update status and repair type fields
+            if ($newStatus === 'in_progress' && $repairType) {
+                $stmt = $pdo->prepare("UPDATE repairs SET status = ?, repair_type = ?, repair_notes = ?, repair_details = ? WHERE id = ?");
+                $stmt->execute([$newStatus, $repairType, $repairNotes, $repairDetails, $repairId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE repairs SET status = ? WHERE id = ?");
+                $stmt->execute([$newStatus, $repairId]);
+            }
 
             $stmt = $pdo->prepare("DELETE FROM approvals WHERE repair_id = ? AND new_status = ?");
             $stmt->execute([$repairId, $newStatus]);
 
             $_SESSION['toast'] = ['message' => 'อัปเดตสถานะเรียบร้อยแล้ว (2/2 admin ยืนยัน)', 'type' => 'success'];
         } else {
+            // Save repair type info for first approval too
+            if ($newStatus === 'in_progress' && $repairType) {
+                $stmt = $pdo->prepare("UPDATE repairs SET repair_type = ?, repair_notes = ?, repair_details = ? WHERE id = ?");
+                $stmt->execute([$repairType, $repairNotes, $repairDetails, $repairId]);
+            }
             $_SESSION['toast'] = ['message' => 'ยืนยันแล้ว รอผู้อนุมัติอีก 1 คน', 'type' => 'warning'];
         }
     } else {
@@ -119,6 +135,7 @@ $statusLabels = [
                         <th class="px-4 py-4 text-left text-xs font-semibold uppercase">อุปกรณ์</th>
                         <th class="px-4 py-4 text-left text-xs font-semibold uppercase">ปัญหา</th>
                         <th class="px-4 py-4 text-left text-xs font-semibold uppercase">สถานะ</th>
+                        <th class="px-4 py-4 text-left text-xs font-semibold uppercase">ประเภทซ่อม</th>
                         <th class="px-4 py-4 text-left text-xs font-semibold uppercase">รอยืนยัน</th>
                         <th class="px-4 py-4 text-center text-xs font-semibold uppercase">จัดการ</th>
                     </tr>
@@ -160,6 +177,23 @@ $statusLabels = [
                                 <span
                                     class="px-3 py-1 rounded-full text-xs font-medium <?= $statusColors[$repair['status']] ?>"><?= $statusLabels[$repair['status']] ?></span>
                             </td>
+                            <td class="px-4 py-4">
+                                <?php if ($repair['repair_type']): ?>
+                                    <?php if ($repair['repair_type'] === 'self_repair'): ?>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">🔧
+                                            ซ่อมเอง</span>
+                                    <?php else: ?>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">🏭
+                                            ส่งซ่อม</span>
+                                    <?php endif; ?>
+                                    <?php if ($repair['repair_notes'] || $repair['repair_details']): ?>
+                                        <button type="button" onclick="showRepairDetailsModal(<?= $repair['id'] ?>)"
+                                            class="ml-1 text-gray-400 hover:text-gray-600" title="ดูรายละเอียด">📋</button>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="text-gray-400 text-xs">-</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="px-4 py-4 text-xs">
                                 <?php if ($repair['in_progress_approvals'] > 0 && $repair['status'] === 'pending'): ?>
                                     <span class="text-blue-600">🔵 ยืนยันซ่อม: <?= $repair['in_progress_approvals'] ?>/2</span>
@@ -172,19 +206,27 @@ $statusLabels = [
                             <td class="px-4 py-4">
                                 <div class="flex items-center justify-center gap-2">
                                     <?php if ($repair['status'] === 'pending' && isAdmin()): ?>
-                                        <form method="POST" class="inline">
-                                            <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">
-                                            <input type="hidden" name="new_status" value="in_progress">
-                                            <button name="approve"
+                                        <?php if ($repair['in_progress_approvals'] == 0): ?>
+                                            <!-- First admin - show modal to fill repair type info -->
+                                            <button type="button" onclick="showAcceptModal(<?= $repair['id'] ?>)"
                                                 class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg">🔧
                                                 รับงาน</button>
-                                        </form>
+                                        <?php else: ?>
+                                            <!-- Second admin - just confirm, no modal needed -->
+                                            <form method="POST" class="inline">
+                                                <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">
+                                                <input type="hidden" name="new_status" value="in_progress">
+                                                <button name="approve"
+                                                    class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg">
+                                                    ยืนยันรับงาน</button>
+                                            </form>
+                                        <?php endif; ?>
                                     <?php elseif ($repair['status'] === 'in_progress' && (isManager() || isSupervisor())): ?>
                                         <form method="POST" class="inline">
                                             <input type="hidden" name="repair_id" value="<?= $repair['id'] ?>">
                                             <input type="hidden" name="new_status" value="completed">
                                             <button name="approve"
-                                                class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg">✅
+                                                class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg">
                                                 ยืนยันเสร็จ</button>
                                         </form>
                                     <?php elseif ($repair['status'] === 'pending'): ?>
@@ -222,10 +264,140 @@ $statusLabels = [
     <?php if ($repair['image_base64']): ?>
         <div id="imgData-<?= $repair['id'] ?>" class="hidden"><?= $repair['image_base64'] ?></div>
     <?php endif; ?>
+    <!-- Store repair notes/details for modal -->
+    <div id="repairNotes-<?= $repair['id'] ?>" class="hidden"><?= e($repair['repair_notes'] ?? '') ?></div>
+    <div id="repairDetails-<?= $repair['id'] ?>" class="hidden"><?= e($repair['repair_details'] ?? '') ?></div>
+    <div id="repairType-<?= $repair['id'] ?>" class="hidden"><?= e($repair['repair_type'] ?? '') ?></div>
+    <!-- Store device info for accept modal -->
+    <div id="deviceType-<?= $repair['id'] ?>" class="hidden"><?= e($repair['device_type']) ?></div>
+    <div id="deviceDetail-<?= $repair['id'] ?>" class="hidden"><?= e($repair['device_detail'] ?? '') ?></div>
+    <div id="problemDesc-<?= $repair['id'] ?>" class="hidden"><?= e($repair['problem']) ?></div>
+    <div id="reporterName-<?= $repair['id'] ?>" class="hidden"><?= e($repair['fullname']) ?></div>
+    <div id="deptName-<?= $repair['id'] ?>" class="hidden"><?= e($repair['department_name']) ?></div>
 <?php endforeach; ?>
+
+<!-- Accept Repair Modal -->
+<div id="acceptModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+    onclick="hideAcceptModal()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-gray-800">🔧 รับงานซ่อม <span id="acceptRepairIdDisplay"
+                    class="text-gray-500 text-base font-normal"></span></h3>
+            <button onclick="hideAcceptModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+
+        <!-- Device Info Section -->
+        <div class="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <h4 class="text-sm font-semibold text-blue-800 mb-2">📋 ข้อมูลการแจ้งซ่อม</h4>
+            <div class="space-y-2 text-sm">
+                <div class="flex">
+                    <span class="text-gray-500 w-24">ผู้แจ้ง:</span>
+                    <span id="modalReporter" class="text-gray-800 font-medium"></span>
+                </div>
+                <div class="flex">
+                    <span class="text-gray-500 w-24">แผนก:</span>
+                    <span id="modalDept" class="text-gray-800"></span>
+                </div>
+                <div class="flex">
+                    <span class="text-gray-500 w-24">อุปกรณ์:</span>
+                    <span id="modalDevice" class="text-gray-800 font-medium"></span>
+                </div>
+                <div id="modalDeviceDetailRow" class="flex hidden">
+                    <span class="text-gray-500 w-24">รายละเอียด:</span>
+                    <span id="modalDeviceDetail" class="text-gray-800"></span>
+                </div>
+                <div class="flex">
+                    <span class="text-gray-500 w-24">ปัญหา:</span>
+                    <span id="modalProblem" class="text-gray-800"></span>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" id="acceptForm">
+            <input type="hidden" name="repair_id" id="acceptRepairId">
+            <input type="hidden" name="new_status" value="in_progress">
+
+            <!-- Repair Type -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">ประเภทการซ่อม <span
+                        class="text-red-500">*</span></label>
+                <select name="repair_type" id="repairTypeSelect" required
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    onchange="toggleNotesField()">
+                    <option value="">-- เลือกประเภท --</option>
+                    <option value="self_repair">🔧 ซ่อมเอง</option>
+                    <option value="outsource">🏭 ส่งซ่อม</option>
+                </select>
+            </div>
+
+            <!-- Notes (shown when outsource is selected) -->
+            <div id="notesField" class="mb-4 hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-2">หมายเหตุ
+                    (ส่งซ่อมที่ไหน/ข้อมูลเพิ่มเติม)</label>
+                <input type="text" name="repair_notes" id="repairNotesInput"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="เช่น ส่งซ่อมที่ร้าน ABC">
+            </div>
+
+            <!-- Repair Details -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">รายละเอียดการซ่อม / การดำเนินการ</label>
+                <textarea name="repair_details" id="repairDetailsInput" rows="3"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                    placeholder="บันทึกสิ่งที่จะทำหรือข้อมูลการซ่อม..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="hideAcceptModal()"
+                    class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all">
+                    ยกเลิก
+                </button>
+                <button type="submit" name="approve"
+                    class="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all font-medium">
+                    🔧 ยืนยันรับงาน
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Repair Details View Modal -->
+<div id="repairDetailsModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+    onclick="hideRepairDetailsModal()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-gray-800">📋 รายละเอียดการซ่อม</h3>
+            <button onclick="hideRepairDetailsModal()"
+                class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+
+        <div class="space-y-4">
+            <div id="detailsTypeDisplay" class="p-3 bg-gray-50 rounded-xl">
+                <label class="block text-xs font-medium text-gray-500 mb-1">ประเภทการซ่อม</label>
+                <p id="detailsType" class="text-gray-800 font-medium"></p>
+            </div>
+
+            <div id="detailsNotesDisplay" class="p-3 bg-gray-50 rounded-xl hidden">
+                <label class="block text-xs font-medium text-gray-500 mb-1">หมายเหตุ</label>
+                <p id="detailsNotes" class="text-gray-800"></p>
+            </div>
+
+            <div id="detailsActionsDisplay" class="p-3 bg-gray-50 rounded-xl hidden">
+                <label class="block text-xs font-medium text-gray-500 mb-1">รายละเอียดการซ่อม / การดำเนินการ</label>
+                <p id="detailsActions" class="text-gray-800 whitespace-pre-wrap"></p>
+            </div>
+        </div>
+
+        <button onclick="hideRepairDetailsModal()"
+            class="w-full mt-6 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all">
+            ปิด
+        </button>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+    // Image Modal
     function showImageModal(id) {
         const imgData = document.getElementById('imgData-' + id);
         if (imgData) {
@@ -238,7 +410,94 @@ $statusLabels = [
         document.getElementById('imageModal').classList.add('hidden');
         document.body.style.overflow = '';
     }
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideImageModal(); });
+
+    // Accept Modal
+    function showAcceptModal(id) {
+        document.getElementById('acceptRepairId').value = id;
+        document.getElementById('acceptRepairIdDisplay').textContent = '#' + String(id).padStart(4, '0');
+        document.getElementById('repairTypeSelect').value = '';
+        document.getElementById('repairNotesInput').value = '';
+        document.getElementById('repairDetailsInput').value = '';
+        document.getElementById('notesField').classList.add('hidden');
+
+        // Populate device info
+        const reporter = document.getElementById('reporterName-' + id)?.textContent || '';
+        const dept = document.getElementById('deptName-' + id)?.textContent || '';
+        const device = document.getElementById('deviceType-' + id)?.textContent || '';
+        const deviceDetail = document.getElementById('deviceDetail-' + id)?.textContent || '';
+        const problem = document.getElementById('problemDesc-' + id)?.textContent || '';
+
+        document.getElementById('modalReporter').textContent = reporter;
+        document.getElementById('modalDept').textContent = dept;
+        document.getElementById('modalDevice').textContent = device;
+        document.getElementById('modalProblem').textContent = problem;
+
+        if (deviceDetail) {
+            document.getElementById('modalDeviceDetail').textContent = deviceDetail;
+            document.getElementById('modalDeviceDetailRow').classList.remove('hidden');
+        } else {
+            document.getElementById('modalDeviceDetailRow').classList.add('hidden');
+        }
+
+        document.getElementById('acceptModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    function hideAcceptModal() {
+        document.getElementById('acceptModal').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+    function toggleNotesField() {
+        const select = document.getElementById('repairTypeSelect');
+        const notesField = document.getElementById('notesField');
+        if (select.value === 'outsource') {
+            notesField.classList.remove('hidden');
+        } else {
+            notesField.classList.add('hidden');
+        }
+    }
+
+    // Repair Details Modal
+    function showRepairDetailsModal(id) {
+        const type = document.getElementById('repairType-' + id)?.textContent || '';
+        const notes = document.getElementById('repairNotes-' + id)?.textContent || '';
+        const details = document.getElementById('repairDetails-' + id)?.textContent || '';
+
+        // Display type
+        const typeText = type === 'self_repair' ? '🔧 ซ่อมเอง' : '🏭 ส่งซ่อม';
+        document.getElementById('detailsType').textContent = typeText;
+
+        // Display notes if exists
+        if (notes) {
+            document.getElementById('detailsNotes').textContent = notes;
+            document.getElementById('detailsNotesDisplay').classList.remove('hidden');
+        } else {
+            document.getElementById('detailsNotesDisplay').classList.add('hidden');
+        }
+
+        // Display details if exists
+        if (details) {
+            document.getElementById('detailsActions').textContent = details;
+            document.getElementById('detailsActionsDisplay').classList.remove('hidden');
+        } else {
+            document.getElementById('detailsActionsDisplay').classList.add('hidden');
+        }
+
+        document.getElementById('repairDetailsModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    function hideRepairDetailsModal() {
+        document.getElementById('repairDetailsModal').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    // Keyboard handlers
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            hideImageModal();
+            hideAcceptModal();
+            hideRepairDetailsModal();
+        }
+    });
 
     function confirmDelete(id) {
         Swal.fire({

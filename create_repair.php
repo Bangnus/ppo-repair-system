@@ -16,13 +16,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $deviceDetail = trim($_POST['device_detail'] ?? '');
     $problem = trim($_POST['problem']);
 
-    // Handle image upload as Base64
+    // Handle image upload as Base64 with size limit
     $imageBase64 = null;
     if (!empty($_FILES['image']['tmp_name'])) {
         $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         $fileType = mime_content_type($_FILES['image']['tmp_name']);
+        $maxFileSizeKB = 500; // Maximum file size in KB (500KB)
 
         if (in_array($fileType, $allowedTypes)) {
+            // Check file size
+            $fileSizeKB = $_FILES['image']['size'] / 1024;
+
+            if ($fileSizeKB > $maxFileSizeKB) {
+                $_SESSION['toast'] = ['message' => 'รูปภาพมีขนาดใหญ่เกินไป (สูงสุด ' . $maxFileSizeKB . 'KB) กรุณาย่อขนาดรูปก่อนอัพโหลด', 'type' => 'error'];
+                header('Location: create_repair.php');
+                exit();
+            }
+
             $imageData = file_get_contents($_FILES['image']['tmp_name']);
             $imageBase64 = 'data:' . $fileType . ';base64,' . base64_encode($imageData);
         }
