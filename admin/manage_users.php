@@ -53,15 +53,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete'])) {
     if ($id === $_SESSION['user_id']) {
         $_SESSION['toast'] = ['message' => 'ไม่สามารถลบตัวเองได้', 'type' => 'error'];
     } else {
+        // Get user info
+        $stmt = $pdo->prepare("SELECT fullname FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        $userName = $stmt->fetchColumn();
+
+        // Get repair count before deletion
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM repairs WHERE user_id = ?");
         $stmt->execute([$id]);
         $repairCount = $stmt->fetchColumn();
 
+        // Get repair IDs for this user
+        $stmt = $pdo->prepare("SELECT id FROM repairs WHERE user_id = ?");
+        $stmt->execute([$id]);
+        $repairIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Delete approvals for user's repairs
+        if (!empty($repairIds)) {
+            $placeholders = implode(',', array_fill(0, count($repairIds), '?'));
+            $stmt = $pdo->prepare("DELETE FROM approvals WHERE repair_id IN ($placeholders)");
+            $stmt->execute($repairIds);
+        }
+
+        // Delete approvals made by this user (as admin)
+        $stmt = $pdo->prepare("DELETE FROM approvals WHERE admin_id = ?");
+        $stmt->execute([$id]);
+
+        // Delete all repairs by this user
+        $stmt = $pdo->prepare("DELETE FROM repairs WHERE user_id = ?");
+        $stmt->execute([$id]);
+
+        // Delete user
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+
         if ($repairCount > 0) {
-            $_SESSION['toast'] = ['message' => 'ไม่สามารถลบได้ ผู้ใช้นี้มีรายการแจ้งซ่อม', 'type' => 'error'];
+            $_SESSION['toast'] = ['message' => 'ลบผู้ใช้ "' . $userName . '" พร้อมรายการแจ้งซ่อม ' . $repairCount . ' รายการเรียบร้อยแล้ว', 'type' => 'success'];
         } else {
-            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-            $stmt->execute([$id]);
             $_SESSION['toast'] = ['message' => 'ลบผู้ใช้เรียบร้อยแล้ว', 'type' => 'success'];
         }
     }
@@ -257,30 +285,51 @@ $avatarColors = [
 
     function confirmDelete(id, name, repairCount) {
         if (repairCount > 0) {
+            // Has repairs - require typing name to confirm
             Swal.fire({
-                title: 'ไม่สามารถลบได้',
-                text: '"' + name + '" มีรายการแจ้งซ่อม ' + repairCount + ' รายการ',
-                icon: 'error',
-                confirmButtonColor: '#6b7280',
-                confirmButtonText: 'ตกลง'
+                title: '⚠️ ยืนยันการลบ',
+                html: `
+                    <div class="text-left">
+                        <p class="text-red-600 font-semibold ">คำเตือน: "${name}" มีรายการแจ้งซ่อม ${repairCount} รายการ</p>
+                        <p class="text-gray-600 mb-4 text-sm">การลบจะลบรายการแจ้งซ่อมทั้งหมดด้วย</p>
+                        <p class="text-sm text-gray-500 mb-2">พิมพ์ <strong class="text-red-600">${name}</strong> เพื่อยืนยัน:</p>
+                    </div>
+                `,
+                input: 'text',
+                inputPlaceholder: 'พิมพ์ชื่อเพื่อยืนยัน...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: '🗑️ ลบผู้ใช้',
+                cancelButtonText: 'ยกเลิก',
+                inputValidator: (value) => {
+                    if (value !== name) {
+                        return 'ชื่อไม่ตรงกัน กรุณาพิมพ์ให้ถูกต้อง';
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deleteForm' + id).submit();
+                }
             });
-            return;
+        } else {
+            // No repairs - simple confirmation
+            Swal.fire({
+                title: 'ลบผู้ใช้?',
+                text: 'ต้องการลบ "' + name + '" หรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'ตกลง',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deleteForm' + id).submit();
+                }
+            });
         }
-
-        Swal.fire({
-            title: 'ลบผู้ใช้?',
-            text: 'ต้องการลบ "' + name + '" หรือไม่?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#6b7280',
-            confirmButtonText: 'ตกลง',
-            cancelButtonText: 'ยกเลิก'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('deleteForm' + id).submit();
-            }
-        });
     }
 </script>
 
